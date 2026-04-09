@@ -223,7 +223,7 @@ public class FinTelServer {
         if (results.isEmpty()) {
             throw new IllegalArgumentException("No Indian stock match found for '" + normalized + "'.");
         }
-        return results.getFirst();
+        return results.get(0);
     }
 
     private static List<SearchResult> searchIndianStocks(String query) throws IOException, InterruptedException {
@@ -601,8 +601,8 @@ public class FinTelServer {
         List<NewsItem> newsItems,
         RegressionModel model
     ) {
-        double latestClose = historicalPrices.getLast().close();
-        double forecastEnd = predictions.getLast().predictedClose();
+        double latestClose = historicalPrices.get(historicalPrices.size() - 1).close();
+        double forecastEnd = predictions.get(predictions.size() - 1).predictedClose();
         double fittedCurrent = model.predict(historicalPrices.size() - 1);
         double movePct = latestClose == 0.0 ? 0.0 : ((forecastEnd - latestClose) / latestClose) * 100.0;
         String trendDirection = model.slope() > 0.25 ? "Upward one-month slope"
@@ -801,29 +801,179 @@ public class FinTelServer {
         return matcher.replaceAll("");
     }
 
-    record PricePoint(LocalDate date, double close) {
+    static class PricePoint {
+        private final LocalDate date;
+        private final double close;
+
+        PricePoint(LocalDate date, double close) {
+            this.date = date;
+            this.close = close;
+        }
+
+        LocalDate date() {
+            return date;
+        }
+
+        double close() {
+            return close;
+        }
     }
 
-    record PredictedPricePoint(LocalDate date, double predictedClose) {
+    static class PredictedPricePoint {
+        private final LocalDate date;
+        private final double predictedClose;
+
+        PredictedPricePoint(LocalDate date, double predictedClose) {
+            this.date = date;
+            this.predictedClose = predictedClose;
+        }
+
+        LocalDate date() {
+            return date;
+        }
+
+        double predictedClose() {
+            return predictedClose;
+        }
     }
 
-    record SearchResult(String symbol, String displayName, String longName, String exchange, String currency) {
+    static class SearchResult {
+        private final String symbol;
+        private final String displayName;
+        private final String longName;
+        private final String exchange;
+        private final String currency;
+
+        SearchResult(String symbol, String displayName, String longName, String exchange, String currency) {
+            this.symbol = symbol;
+            this.displayName = displayName;
+            this.longName = longName;
+            this.exchange = exchange;
+            this.currency = currency;
+        }
+
+        String symbol() {
+            return symbol;
+        }
+
+        String displayName() {
+            return displayName;
+        }
+
+        String longName() {
+            return longName;
+        }
+
+        String exchange() {
+            return exchange;
+        }
+
+        String currency() {
+            return currency;
+        }
     }
 
-    record StockData(List<PricePoint> historicalPrices, double fiftyTwoWeekHigh, double fiftyTwoWeekLow) {
+    static class StockData {
+        private final List<PricePoint> historicalPrices;
+        private final double fiftyTwoWeekHigh;
+        private final double fiftyTwoWeekLow;
+
+        StockData(List<PricePoint> historicalPrices, double fiftyTwoWeekHigh, double fiftyTwoWeekLow) {
+            this.historicalPrices = historicalPrices;
+            this.fiftyTwoWeekHigh = fiftyTwoWeekHigh;
+            this.fiftyTwoWeekLow = fiftyTwoWeekLow;
+        }
+
+        List<PricePoint> historicalPrices() {
+            return historicalPrices;
+        }
+
+        double fiftyTwoWeekHigh() {
+            return fiftyTwoWeekHigh;
+        }
+
+        double fiftyTwoWeekLow() {
+            return fiftyTwoWeekLow;
+        }
     }
 
-    record NewsItem(String title, String publisher, String link, String publishedAt) {
+    static class NewsItem {
+        private final String title;
+        private final String publisher;
+        private final String link;
+        private final String publishedAt;
+
+        NewsItem(String title, String publisher, String link, String publishedAt) {
+            this.title = title;
+            this.publisher = publisher;
+            this.link = link;
+            this.publishedAt = publishedAt;
+        }
+
+        String title() {
+            return title;
+        }
+
+        String publisher() {
+            return publisher;
+        }
+
+        String link() {
+            return link;
+        }
+
+        String publishedAt() {
+            return publishedAt;
+        }
     }
 
-    record ForecastRationale(
-        String label,
-        String summary,
-        String trendDirection,
-        String newsBias,
-        String forecastMove,
-        String disclaimer
-    ) {
+    static class ForecastRationale {
+        private final String label;
+        private final String summary;
+        private final String trendDirection;
+        private final String newsBias;
+        private final String forecastMove;
+        private final String disclaimer;
+
+        ForecastRationale(
+            String label,
+            String summary,
+            String trendDirection,
+            String newsBias,
+            String forecastMove,
+            String disclaimer
+        ) {
+            this.label = label;
+            this.summary = summary;
+            this.trendDirection = trendDirection;
+            this.newsBias = newsBias;
+            this.forecastMove = forecastMove;
+            this.disclaimer = disclaimer;
+        }
+
+        String label() {
+            return label;
+        }
+
+        String summary() {
+            return summary;
+        }
+
+        String trendDirection() {
+            return trendDirection;
+        }
+
+        String newsBias() {
+            return newsBias;
+        }
+
+        String forecastMove() {
+            return forecastMove;
+        }
+
+        String disclaimer() {
+            return disclaimer;
+        }
     }
 
     static class RegressionModel {
@@ -838,7 +988,7 @@ public class FinTelServer {
         static RegressionModel train(List<PricePoint> prices) {
             int n = prices.size();
             if (n == 1) {
-                return new RegressionModel(0.0, prices.getFirst().close());
+                return new RegressionModel(0.0, prices.get(0).close());
             }
 
             double sumX = 0.0;
