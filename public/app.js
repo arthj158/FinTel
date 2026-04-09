@@ -75,8 +75,8 @@ function formatRelativeDate(isoValue) {
 
 function renderMetrics(data) {
     currentCurrency = data.currency || "INR";
-    const latestClose = data.historical_prices.at(-1)?.close ?? 0;
-    const forecastEnd = data.predicted_prices.at(-1)?.predicted_close ?? 0;
+    const latestClose = data.historical_prices[data.historical_prices.length - 1]?.close ?? 0;
+    const forecastEnd = data.predicted_prices[data.predicted_prices.length - 1]?.predicted_close ?? 0;
     const delta = forecastEnd - latestClose;
 
     latestCloseEl.textContent = formatNumber(latestClose);
@@ -125,7 +125,7 @@ function renderNews(data) {
     newsListEl.innerHTML = items.map((item) => `
         <article class="news-item">
             <a href="${item.link}" target="_blank" rel="noreferrer">${item.title}</a>
-            <div class="news-meta">${item.publisher} • ${formatRelativeDate(item.published_at)}</div>
+            <div class="news-meta">${item.publisher} · ${formatRelativeDate(item.published_at)}</div>
         </article>
     `).join("");
 }
@@ -155,7 +155,7 @@ function renderChart(data) {
         label: formatDisplayDate(point.date),
         value: point.predicted_close
     }));
-    const allPoints = [...history, ...forecast];
+    const allPoints = history.concat(forecast);
 
     const width = 900;
     const height = 420;
@@ -163,8 +163,8 @@ function renderChart(data) {
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
     const values = allPoints.map((point) => point.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
+    const min = Math.min.apply(null, values);
+    const max = Math.max.apply(null, values);
     const paddedMin = min - (max - min || 1) * 0.18;
     const paddedMax = max + (max - min || 1) * 0.18;
     const xScale = (index) => margin.left + (innerWidth * index) / Math.max(allPoints.length - 1, 1);
@@ -172,10 +172,8 @@ function renderChart(data) {
 
     const historyPath = buildPath(history, xScale, yScale);
     const forecastStart = history.length - 1;
-    const forecastWithJoin = [
-        { ...history.at(-1), label: history.at(-1)?.label ?? "" },
-        ...forecast
-    ];
+    const historyTail = history.length ? history[history.length - 1] : { label: "", value: 0 };
+    const forecastWithJoin = [historyTail].concat(forecast);
     const forecastPath = forecastWithJoin.map((point, index) => {
         const globalIndex = forecastStart + index;
         const command = index === 0 ? "M" : "L";
@@ -264,6 +262,12 @@ async function searchSuggestions(query) {
     }
 }
 
+function updateTickerInUrl(ticker) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("ticker", ticker);
+    window.history.replaceState({}, "", url);
+}
+
 async function loadTicker(ticker) {
     const cleanTicker = ticker.trim();
     if (!cleanTicker) {
@@ -284,6 +288,7 @@ async function loadTicker(ticker) {
             throw new Error(data.error || "Unable to fetch ticker data.");
         }
 
+        updateTickerInUrl(cleanTicker);
         renderMetrics(data);
         renderRationale(data);
         renderMarketLinks(data);
@@ -291,7 +296,7 @@ async function loadTicker(ticker) {
         renderTable(data.predicted_prices, forecastTableEl, "predicted_close");
         renderNews(data);
         renderChart(data);
-        setStatus(`Showing ${data.company_name} on ${data.exchange} with ${data.historical_prices.length} historical points, 5 forecast points, and recent news context.`);
+        setStatus(`Showing ${data.company_name} on ${data.exchange} with ${data.historical_prices.length} historical points and 5 forecast points.`);
     } catch (error) {
         setStatus(error.message || "Something went wrong.", true);
     }
@@ -310,4 +315,5 @@ document.querySelectorAll(".ticker-chip").forEach((button) => {
     button.addEventListener("click", () => loadTicker(button.dataset.ticker || ""));
 });
 
-loadTicker("Reliance");
+const params = new URLSearchParams(window.location.search);
+loadTicker(params.get("ticker") || "Reliance");

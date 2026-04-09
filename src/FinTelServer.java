@@ -38,7 +38,12 @@ public class FinTelServer {
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
         server.createContext("/", new RootHandler());
+        server.createContext("/analysis", new AnalysisHandler());
+        server.createContext("/trending", new TrendingHandler());
         server.createContext("/app.js", new StaticFileHandler("public/app.js", "application/javascript; charset=utf-8"));
+        server.createContext("/fintel-mark.svg", new StaticFileHandler("public/fintel-mark.svg", "image/svg+xml; charset=utf-8"));
+        server.createContext("/home.js", new StaticFileHandler("public/home.js", "application/javascript; charset=utf-8"));
+        server.createContext("/trending.js", new StaticFileHandler("public/trending.js", "application/javascript; charset=utf-8"));
         server.createContext("/predict", new PredictHandler());
         server.createContext("/search", new SearchHandler());
         server.createContext("/styles.css", new StaticFileHandler("public/styles.css", "text/css; charset=utf-8"));
@@ -56,6 +61,28 @@ public class FinTelServer {
                 return;
             }
             sendText(exchange, 200, readFile("public/index.html"), "text/html; charset=utf-8");
+        }
+    }
+
+    static class AnalysisHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 405, "{\"error\":\"Method not allowed.\"}");
+                return;
+            }
+            sendText(exchange, 200, readFile("public/analysis.html"), "text/html; charset=utf-8");
+        }
+    }
+
+    static class TrendingHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 405, "{\"error\":\"Method not allowed.\"}");
+                return;
+            }
+            sendText(exchange, 200, readFile("public/trending.html"), "text/html; charset=utf-8");
         }
     }
 
@@ -128,7 +155,7 @@ public class FinTelServer {
                     return;
                 }
 
-                RegressionModel model = RegressionModel.train(historicalPrices);
+                AutoRegressiveModel model = AutoRegressiveModel.train(historicalPrices);
                 List<PredictedPricePoint> predictions = predictNextBusinessDays(historicalPrices, model, 5);
                 List<NewsItem> newsItems = fetchNewsItems(resolved);
                 ForecastRationale rationale = buildForecastRationale(resolved, historicalPrices, predictions, newsItems, model);
@@ -318,12 +345,20 @@ public class FinTelServer {
 
     private static List<PredictedPricePoint> predictNextBusinessDays(
         List<PricePoint> historicalPrices,
-        RegressionModel model,
+        AutoRegressiveModel model,
         int forecastDays
     ) {
         List<PredictedPricePoint> predictions = new ArrayList<>();
         LocalDate nextDate = historicalPrices.get(historicalPrices.size() - 1).date();
-        int nextIndex = historicalPrices.size();
+        List<Double> rollingPrices = new ArrayList<>();
+        for (PricePoint price : historicalPrices) {
+            rollingPrices.add(price.close());
+        }
+
+        double recentMomentum = averageReturn(rollingPrices, 5);
+        double recentVolatility = standardDeviationOfReturns(rollingPrices, 7);
+        List<Double> rollingReturns = extractRecentReturns(rollingPrices, 7);
+        double anchorAverage = averageOfLastValues(rollingPrices, 5);
 
         while (predictions.size() < forecastDays) {
             nextDate = nextDate.plusDays(1);
@@ -331,8 +366,34 @@ public class FinTelServer {
                 continue;
             }
 
-            predictions.add(new PredictedPricePoint(nextDate, model.predict(nextIndex)));
-            nextIndex++;
+            double latestClose = rollingPrices.get(rollingPrices.size() - 1);
+            double modelClose = model.predictNextClose(rollingPrices);
+            double modelReturn = latestClose == 0.0 ? 0.0 : (modelClose - latestClose) / latestClose;
+            double patternReturn = rollingReturns.isEmpty() ? recentMomentum : rollingReturns.get(predictions.size() % rollingReturns.size());
+            double previousPattern = rollingReturns.size() < 2
+                ? patternReturn
+                : rollingReturns.get((predictions.size() + rollingReturns.size() - 1) % rollingReturns.size());
+            double returnAcceleration = patternReturn - previousPattern;
+            double meanReversion = latestClose == 0.0 ? 0.0 : ((anchorAverage - latestClose) / latestClose) * 0.18;
+            double momentumCarry = recentMomentum * Math.max(0.55, 1.0 - (predictions.size() * 0.08));
+            double volatilityKick = recentVolatility * (0.85 + (predictions.size() * 0.10));
+            double directionalKick = Math.signum(patternReturn == 0.0 ? momentumCarry : patternReturn) * volatilityKick;
+            double adjustedReturn = (modelReturn * 0.20)
+                + (momentumCarry * 0.24)
+                + (patternReturn * 0.36)
+                + (returnAcceleration * 0.14)
+                + meanReversion
+                + directionalKick;
+            adjustedReturn = clamp(adjustedReturn, -0.045, 0.045);
+            double predictedClose = latestClose * (1.0 + adjustedReturn);
+            predictedClose = clamp(predictedClose, latestClose * 0.88, latestClose * 1.12);
+            predictions.add(new PredictedPricePoint(nextDate, predictedClose));
+            rollingPrices.add(predictedClose);
+            rollingReturns.add(adjustedReturn);
+            anchorAverage = ((anchorAverage * 4.0) + predictedClose) / 5.0;
+            if (rollingReturns.size() > 7) {
+                rollingReturns.remove(0);
+            }
         }
 
         return predictions;
@@ -357,7 +418,7 @@ public class FinTelServer {
         json.append("\"fifty_two_week_low\":").append(formatDecimal(stockData.fiftyTwoWeekLow())).append(",");
         json.append("\"market_url\":\"").append(escapeJson(buildMarketUrl(resolved))).append("\",");
         json.append("\"news_search_url\":\"").append(escapeJson(buildNewsSearchUrl(resolved))).append("\",");
-        json.append("\"model\":\"LinearRegression\",");
+        json.append("\"model\":\"AutoregressiveRidgeMomentum\",");
         json.append("\"historical_prices\":[");
 
         for (int i = 0; i < displayHistory.size(); i++) {
@@ -599,20 +660,23 @@ public class FinTelServer {
         List<PricePoint> historicalPrices,
         List<PredictedPricePoint> predictions,
         List<NewsItem> newsItems,
-        RegressionModel model
+        AutoRegressiveModel model
     ) {
         double latestClose = historicalPrices.get(historicalPrices.size() - 1).close();
         double forecastEnd = predictions.get(predictions.size() - 1).predictedClose();
-        double fittedCurrent = model.predict(historicalPrices.size() - 1);
+        double fittedCurrent = model.predictNextClose(extractCloseValues(historicalPrices));
         double movePct = latestClose == 0.0 ? 0.0 : ((forecastEnd - latestClose) / latestClose) * 100.0;
-        String trendDirection = model.slope() > 0.25 ? "Upward one-month slope"
-            : model.slope() < -0.25 ? "Downward one-month slope"
-            : "Mostly flat one-month slope";
+        double shortAverage = averageOfLast(historicalPrices, 3);
+        double mediumAverage = averageOfLast(historicalPrices, 7);
+        double momentum = shortAverage - mediumAverage;
+        String trendDirection = momentum > latestClose * 0.008 ? "Short-term momentum is above the weekly average"
+            : momentum < -latestClose * 0.008 ? "Short-term momentum is below the weekly average"
+            : "Short-term momentum is close to the weekly average";
         String newsBias = determineNewsBias(newsItems);
         String label = movePct >= 0 ? "FinTel sees upside pressure" : "FinTel sees downside pressure";
         String summary = buildRationaleSummary(resolved, movePct, trendDirection, newsBias, newsItems.size(), latestClose, fittedCurrent);
         String forecastMove = String.format(Locale.US, "%+.2f%% vs latest close", movePct);
-        String disclaimer = "This is a simple linear trend forecast with headline context. It is useful for direction, not certainty.";
+        String disclaimer = "This forecast uses an autoregressive lag model with recent momentum, short volatility carry, and headline context. It is stronger than a straight line fit, but it is still an academic forecast, not certainty.";
 
         return new ForecastRationale(label, summary, trendDirection, newsBias, forecastMove, disclaimer);
     }
@@ -628,19 +692,90 @@ public class FinTelServer {
     ) {
         String directionPhrase;
         if (movePct >= 0 && latestClose < fittedCurrent) {
-            directionPhrase = "The latest close sits below the fitted trend line, so the model expects a modest rebound from here.";
+            directionPhrase = "The latest close sits below the model's recent lag-based estimate, so the forecast leans toward a modest rebound.";
         } else if (movePct < 0 && latestClose > fittedCurrent) {
-            directionPhrase = "The latest close sits above the fitted trend line, so the model expects some cooling from here.";
+            directionPhrase = "The latest close sits above the model's recent lag-based estimate, so the forecast allows for some cooling.";
         } else if (movePct >= 0) {
-            directionPhrase = "The model projects a modest rise from the latest close.";
+            directionPhrase = "The autoregressive model projects a modest rise from the latest close.";
         } else {
-            directionPhrase = "The model projects a softer path from the latest close.";
+            directionPhrase = "The autoregressive model projects a softer path from the latest close.";
         }
         String newsPhrase = newsCount > 0
             ? "Recent matched headlines read as " + newsBias.toLowerCase(Locale.US) + "."
             : "Recent matched headlines were limited, so the model is leaning more on price trend than news.";
         return directionPhrase + " " + trendDirection + " is the main driver for " + resolved.displayName()
             + ", and " + newsPhrase;
+    }
+
+    private static List<Double> extractCloseValues(List<PricePoint> historicalPrices) {
+        List<Double> closes = new ArrayList<>();
+        for (PricePoint pricePoint : historicalPrices) {
+            closes.add(pricePoint.close());
+        }
+        return closes;
+    }
+
+    private static double averageOfLast(List<PricePoint> historicalPrices, int window) {
+        int start = Math.max(historicalPrices.size() - window, 0);
+        double sum = 0.0;
+        for (int i = start; i < historicalPrices.size(); i++) {
+            sum += historicalPrices.get(i).close();
+        }
+        int count = historicalPrices.size() - start;
+        return count == 0 ? 0.0 : sum / count;
+    }
+
+    private static double averageOfLastValues(List<Double> values, int window) {
+        int start = Math.max(values.size() - window, 0);
+        double sum = 0.0;
+        for (int i = start; i < values.size(); i++) {
+            sum += values.get(i);
+        }
+        int count = values.size() - start;
+        return count == 0 ? 0.0 : sum / count;
+    }
+
+    private static double averageReturn(List<Double> closes, int window) {
+        List<Double> returns = extractRecentReturns(closes, window);
+        if (returns.isEmpty()) {
+            return 0.0;
+        }
+        double sum = 0.0;
+        for (double value : returns) {
+            sum += value;
+        }
+        return sum / returns.size();
+    }
+
+    private static double standardDeviationOfReturns(List<Double> closes, int window) {
+        List<Double> returns = extractRecentReturns(closes, window);
+        if (returns.size() < 2) {
+            return 0.0;
+        }
+        double mean = averageReturn(closes, window);
+        double sumSquares = 0.0;
+        for (double value : returns) {
+            double diff = value - mean;
+            sumSquares += diff * diff;
+        }
+        return Math.sqrt(sumSquares / returns.size());
+    }
+
+    private static List<Double> extractRecentReturns(List<Double> closes, int window) {
+        List<Double> returns = new ArrayList<>();
+        int start = Math.max(1, closes.size() - window);
+        for (int i = start; i < closes.size(); i++) {
+            double previous = closes.get(i - 1);
+            double current = closes.get(i);
+            if (previous != 0.0) {
+                returns.add((current - previous) / previous);
+            }
+        }
+        return returns;
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static String determineNewsBias(List<NewsItem> newsItems) {
@@ -976,48 +1111,158 @@ public class FinTelServer {
         }
     }
 
-    static class RegressionModel {
-        private final double slope;
-        private final double intercept;
+    static class AutoRegressiveModel {
+        private static final int LAG_COUNT = 3;
+        private static final double RIDGE_PENALTY = 0.35;
 
-        private RegressionModel(double slope, double intercept) {
-            this.slope = slope;
-            this.intercept = intercept;
+        private final double[] weights;
+        private final double fallbackAverage;
+
+        private AutoRegressiveModel(double[] weights, double fallbackAverage) {
+            this.weights = weights;
+            this.fallbackAverage = fallbackAverage;
         }
 
-        static RegressionModel train(List<PricePoint> prices) {
-            int n = prices.size();
-            if (n == 1) {
-                return new RegressionModel(0.0, prices.get(0).close());
+        static AutoRegressiveModel train(List<PricePoint> prices) {
+            List<Double> closes = new ArrayList<>();
+            for (PricePoint price : prices) {
+                closes.add(price.close());
             }
 
-            double sumX = 0.0;
-            double sumY = 0.0;
-            double sumXY = 0.0;
-            double sumXX = 0.0;
+            if (closes.size() <= LAG_COUNT + 1) {
+                return new AutoRegressiveModel(defaultWeights(), average(closes));
+            }
 
+            int featureCount = 6;
+            int sampleCount = closes.size() - LAG_COUNT;
+            double[][] normal = new double[featureCount][featureCount];
+            double[] rhs = new double[featureCount];
+
+            for (int index = LAG_COUNT; index < closes.size(); index++) {
+                double[] features = buildFeatures(closes, index);
+                double target = closes.get(index);
+                for (int row = 0; row < featureCount; row++) {
+                    rhs[row] += features[row] * target;
+                    for (int col = 0; col < featureCount; col++) {
+                        normal[row][col] += features[row] * features[col];
+                    }
+                }
+            }
+
+            for (int i = 0; i < featureCount; i++) {
+                normal[i][i] += i == 0 ? 0.0001 : RIDGE_PENALTY;
+            }
+
+            double[] solvedWeights = solveLinearSystem(normal, rhs);
+            if (solvedWeights == null) {
+                solvedWeights = defaultWeights();
+            }
+
+            return new AutoRegressiveModel(solvedWeights, average(closes.subList(Math.max(closes.size() - 5, 0), closes.size())));
+        }
+
+        double predictNextClose(List<Double> rollingPrices) {
+            if (rollingPrices.isEmpty()) {
+                return fallbackAverage;
+            }
+            if (rollingPrices.size() <= LAG_COUNT) {
+                return average(rollingPrices);
+            }
+
+            double[] features = buildFeatures(rollingPrices, rollingPrices.size());
+            double rawPrediction = dot(weights, features);
+            double latestClose = rollingPrices.get(rollingPrices.size() - 1);
+            double shortAverage = average(rollingPrices.subList(Math.max(rollingPrices.size() - 3, 0), rollingPrices.size()));
+            double blendedPrediction = (rawPrediction * 0.82) + (shortAverage * 0.18);
+            double maxUp = latestClose * 1.12;
+            double maxDown = latestClose * 0.88;
+            return clamp(blendedPrediction, maxDown, maxUp);
+        }
+
+        private static double[] buildFeatures(List<Double> closes, int targetIndex) {
+            double lag1 = closes.get(targetIndex - 1);
+            double lag2 = closes.get(targetIndex - 2);
+            double lag3 = closes.get(targetIndex - 3);
+            double avg3 = (lag1 + lag2 + lag3) / 3.0;
+            double momentum = lag1 - lag3;
+            return new double[] {1.0, lag1, lag2, lag3, avg3, momentum};
+        }
+
+        private static double[] solveLinearSystem(double[][] matrix, double[] vector) {
+            int n = vector.length;
+            double[][] augmented = new double[n][n + 1];
+
+            for (int row = 0; row < n; row++) {
+                System.arraycopy(matrix[row], 0, augmented[row], 0, n);
+                augmented[row][n] = vector[row];
+            }
+
+            for (int pivot = 0; pivot < n; pivot++) {
+                int bestRow = pivot;
+                for (int row = pivot + 1; row < n; row++) {
+                    if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[bestRow][pivot])) {
+                        bestRow = row;
+                    }
+                }
+
+                if (Math.abs(augmented[bestRow][pivot]) < 1e-9) {
+                    return null;
+                }
+
+                if (bestRow != pivot) {
+                    double[] temp = augmented[pivot];
+                    augmented[pivot] = augmented[bestRow];
+                    augmented[bestRow] = temp;
+                }
+
+                double divisor = augmented[pivot][pivot];
+                for (int col = pivot; col <= n; col++) {
+                    augmented[pivot][col] /= divisor;
+                }
+
+                for (int row = 0; row < n; row++) {
+                    if (row == pivot) {
+                        continue;
+                    }
+                    double factor = augmented[row][pivot];
+                    for (int col = pivot; col <= n; col++) {
+                        augmented[row][col] -= factor * augmented[pivot][col];
+                    }
+                }
+            }
+
+            double[] solution = new double[n];
             for (int i = 0; i < n; i++) {
-                double x = i;
-                double y = prices.get(i).close();
-                sumX += x;
-                sumY += y;
-                sumXY += x * y;
-                sumXX += x * x;
+                solution[i] = augmented[i][n];
             }
-
-            double denominator = (n * sumXX) - (sumX * sumX);
-            double slope = denominator == 0.0 ? 0.0 : ((n * sumXY) - (sumX * sumY)) / denominator;
-            double intercept = (sumY - (slope * sumX)) / n;
-
-            return new RegressionModel(slope, intercept);
+            return solution;
         }
 
-        double predict(int x) {
-            return intercept + (slope * x);
+        private static double average(List<Double> values) {
+            if (values.isEmpty()) {
+                return 0.0;
+            }
+            double sum = 0.0;
+            for (double value : values) {
+                sum += value;
+            }
+            return sum / values.size();
         }
 
-        double slope() {
-            return slope;
+        private static double dot(double[] left, double[] right) {
+            double total = 0.0;
+            for (int i = 0; i < left.length; i++) {
+                total += left[i] * right[i];
+            }
+            return total;
+        }
+
+        private static double clamp(double value, double min, double max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        private static double[] defaultWeights() {
+            return new double[] {0.0, 0.55, 0.20, 0.10, 0.15, 0.05};
         }
     }
 }

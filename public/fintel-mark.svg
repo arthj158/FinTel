@@ -1,0 +1,21 @@
+<svg viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logoGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#84f5db"/>
+      <stop offset="100%" stop-color="#37d6b3"/>
+    </linearGradient>
+    <linearGradient id="logoAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd38c"/>
+      <stop offset="100%" stop-color="#ffb14a"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="76" height="76" rx="24" fill="rgba(7,19,29,0.95)" stroke="rgba(132,245,219,0.22)" stroke-width="2"/>
+  <path d="M24 58V42" stroke="url(#logoGlow)" stroke-width="3.5" stroke-linecap="round"/>
+  <rect x="19" y="46" width="10" height="12" rx="4" fill="url(#logoGlow)"/>
+  <path d="M44 52V28" stroke="url(#logoGlow)" stroke-width="3.5" stroke-linecap="round"/>
+  <rect x="39" y="34" width="10" height="18" rx="4" fill="url(#logoGlow)"/>
+  <path d="M64 56V22" stroke="url(#logoAccent)" stroke-width="3.5" stroke-linecap="round"/>
+  <rect x="59" y="30" width="10" height="20" rx="4" fill="url(#logoAccent)"/>
+  <path d="M20 60C31 56 42 48 51 40C56 36 61 31 67 24" fill="none" stroke="#edf3ff" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M59 24H67V32" fill="none" stroke="#edf3ff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

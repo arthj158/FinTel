@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinTel Trending</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,ital,wght@6..96,1,700&family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="page-shell">
+        <div class="ambient ambient-one"></div>
+        <div class="ambient ambient-two"></div>
+        <div class="ambient ambient-three"></div>
+
+        <section class="analysis-topbar">
+            <a class="back-link" href="/">Back to home</a>
+            <div class="analysis-brand">
+                <div class="logo-mark logo-mark-small" aria-hidden="true">
+                    <img src="/fintel-mark.svg" alt="FinTel logo">
+                </div>
+                <span>FinTel</span>
+            </div>
+        </section>
+
+        <main class="dashboard trending-page">
+            <section class="glass trending-hero-card">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">Live Board</p>
+                        <h1 class="trending-title">Trending Stocks</h1>
+                    </div>
+                    <div id="trending-status" class="sidebar-status">Refreshing on reload</div>
+                </div>
+                <p class="trending-copy">FinTel picks a fresh group of Indian stocks on every reload and compares the latest close with the current 5-day forecast end price.</p>
+            </section>
+
+            <section class="glass trending-board">
+                <div id="trending-list" class="trending-list trending-list-page">
+                    <article class="trending-item trending-loading">
+                        <div class="trending-meta">
+                            <strong>Loading stocks...</strong>
+                            <span>Pulling current and forecast values</span>
+                        </div>
+                    </article>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/trending.js"></script>
+</body>
+</html>

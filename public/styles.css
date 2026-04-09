@@ -93,6 +93,182 @@ input {
     margin-bottom: 32px;
 }
 
+.hero-home {
+    min-height: calc(100vh - 96px);
+    align-content: center;
+    gap: 34px;
+}
+
+.hero-home-right-rail {
+    grid-template-columns: minmax(0, 1fr) minmax(290px, 340px);
+    align-items: start;
+    justify-items: stretch;
+}
+
+.hero-main {
+    display: grid;
+    gap: 34px;
+}
+
+.trending-sidebar {
+    position: sticky;
+    top: 28px;
+    padding: 22px;
+    background:
+        linear-gradient(180deg, rgba(15, 27, 47, 0.96), rgba(8, 15, 28, 0.96)),
+        radial-gradient(circle at top left, rgba(55, 214, 179, 0.08), transparent 36%);
+}
+
+.sidebar-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.sidebar-head h2 {
+    margin: 0;
+    font-size: 1.45rem;
+}
+
+.sidebar-status {
+    color: var(--muted);
+    font-size: 0.82rem;
+    text-align: right;
+}
+
+.trending-list {
+    display: grid;
+    gap: 12px;
+}
+
+.trending-item {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.035);
+    cursor: pointer;
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.trending-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(55, 214, 179, 0.28);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.trending-loading {
+    cursor: default;
+}
+
+.trending-meta {
+    display: grid;
+    gap: 4px;
+}
+
+.trending-meta strong {
+    font-size: 1rem;
+}
+
+.trending-meta span {
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.trending-prices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.trending-prices div {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.trending-prices span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.76rem;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.trending-prices strong {
+    font-size: 1rem;
+}
+
+.trending-delta {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.trending-delta.negative {
+    color: var(--danger);
+}
+
+.hero-brand-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 10px;
+}
+
+.brand-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.brand-copy {
+    display: grid;
+    gap: 4px;
+    text-align: left;
+}
+
+.brand-copy .eyebrow {
+    margin-bottom: 0;
+}
+
+.brand-copy span {
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.logo-mark {
+    width: 72px;
+    height: 72px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 24px;
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+    flex-shrink: 0;
+}
+
+.logo-mark img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.logo-mark-small {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    box-shadow: none;
+}
+
 .eyebrow,
 .section-kicker,
 .panel-label {
@@ -106,10 +282,14 @@ input {
 
 .hero h1 {
     margin: 0;
-    font-family: "Space Grotesk", sans-serif;
+    font-family: "Bodoni Moda", serif;
     font-size: clamp(4rem, 10vw, 8rem);
-    line-height: 0.98;
+    font-style: italic;
+    line-height: 0.9;
     text-align: center;
+    letter-spacing: -0.04em;
+    font-weight: 700;
+    text-shadow: 0 14px 36px rgba(55, 214, 179, 0.12);
 }
 
 .hero-text,
@@ -123,10 +303,13 @@ input {
 .hero-copy {
     text-align: center;
     width: min(860px, 100%);
+    display: grid;
+    justify-items: center;
+    gap: 0;
 }
 
 .hero-subheading {
-    max-width: 24ch;
+    max-width: 28ch;
     margin: 18px auto 0;
     font-family: "Space Grotesk", sans-serif;
     font-size: clamp(1.2rem, 2.6vw, 2rem);
@@ -155,6 +338,10 @@ input {
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--text);
     font-size: 0.9rem;
+}
+
+.hero-chips-brand span {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
 }
 
 .hero-panel {
@@ -222,11 +409,25 @@ input {
     padding: 22px;
 }
 
+.search-card-home {
+    width: min(860px, 100%);
+    padding: 28px;
+    background:
+        linear-gradient(180deg, rgba(16, 31, 53, 0.94), rgba(8, 17, 30, 0.96)),
+        radial-gradient(circle at top right, rgba(55, 214, 179, 0.1), transparent 32%);
+}
+
+.search-card-home .status {
+    margin-top: 20px;
+}
+
 .search-form label {
     display: block;
     margin-bottom: 10px;
     font-size: 0.92rem;
     color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 .search-row {
@@ -272,13 +473,6 @@ input {
 .search-row button:hover,
 .ticker-chip:hover {
     transform: translateY(-2px);
-}
-
-.chip-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 18px;
 }
 
 .suggestions {
@@ -327,6 +521,74 @@ input {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 16px;
+}
+
+.analysis-topbar {
+    position: relative;
+    z-index: 1;
+    width: min(1180px, 100%);
+    margin: 0 auto 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.analysis-brand,
+.back-link {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 12px 18px;
+}
+
+.analysis-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-family: "Bodoni Moda", serif;
+    font-style: italic;
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
+.back-link {
+    color: var(--text);
+    text-decoration: none;
+}
+
+.analysis-dashboard {
+    padding-bottom: 12px;
+}
+
+.analysis-search-card {
+    margin-bottom: 4px;
+}
+
+.trending-page {
+    max-width: 1180px;
+}
+
+.trending-hero-card,
+.trending-board {
+    padding: 22px;
+}
+
+.trending-title {
+    margin: 0;
+    font-size: clamp(2rem, 5vw, 3.4rem);
+    font-family: "Space Grotesk", sans-serif;
+}
+
+.trending-copy {
+    margin: 0;
+    color: var(--muted);
+    max-width: 64ch;
+    line-height: 1.7;
+}
+
+.trending-list-page {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .insight-grid {
@@ -552,13 +814,32 @@ td {
         grid-template-columns: 1fr;
     }
 
+    .hero-home-right-rail {
+        grid-template-columns: 1fr;
+    }
+
+    .trending-sidebar {
+        position: static;
+        order: 2;
+    }
+
+    .brand-lockup {
+        border-radius: 28px;
+    }
+
+    .hero-brand-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+
     .section-head {
         align-items: start;
     }
 
     .insight-grid,
     .metrics-grid,
-    .tables-grid {
+    .tables-grid,
+    .trending-list-page {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -572,6 +853,15 @@ td {
         padding: 22px 14px 36px;
     }
 
+    .brand-lockup {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .brand-copy {
+        text-align: left;
+    }
+
     .search-row {
         flex-direction: column;
     }
@@ -582,12 +872,18 @@ td {
 
     .insight-grid,
     .metrics-grid,
-    .tables-grid {
+    .tables-grid,
+    .trending-list-page {
         grid-template-columns: 1fr;
     }
 
     .section-head {
         flex-direction: column;
         align-items: start;
+    }
+
+    .analysis-topbar {
+        flex-direction: column;
+        align-items: stretch;
     }
 }
