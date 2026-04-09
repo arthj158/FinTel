@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinTel India Forecast Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="page-shell">
+        <div class="ambient ambient-one"></div>
+        <div class="ambient ambient-two"></div>
+        <div class="ambient ambient-three"></div>
+
+        <section class="hero">
+            <div class="hero-copy">
+                <p class="eyebrow">FinTel Forecast Studio</p>
+                <h1>FinTel</h1>
+                <p class="hero-subheading">Search almost any listed Indian stock, see the trend, and understand the story behind the prediction.</p>
+                <p class="hero-text">
+                    FinTel resolves company names across Indian equities, forecasts the next five trading sessions, and combines the price trend with recent headlines so the output feels explainable instead of opaque.
+                </p>
+                <div class="hero-chips">
+                    <span>1 month history</span>
+                    <span>5 day forecast</span>
+                    <span>News-backed context</span>
+                </div>
+            </div>
+
+            <div class="hero-panel glass">
+                <div class="panel-label">FinTel Engine</div>
+                <div class="panel-value">Trend + News</div>
+                <p>Search by company name, NSE symbol, or BSE symbol. FinTel keeps the forecast simple and shows the recent headlines influencing the narrative.</p>
+                <div class="hero-stats">
+                    <div>
+                        <span>Universe</span>
+                        <strong>India-listed</strong>
+                    </div>
+                    <div>
+                        <span>Model</span>
+                        <strong>Linear Regression</strong>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <main class="dashboard">
+            <section class="search-card glass">
+                <form id="ticker-form" class="search-form">
+                    <label for="ticker-input">Search Indian stock</label>
+                    <div class="search-row">
+                        <input id="ticker-input" name="ticker" type="text" placeholder="Reliance, TCS, Infosys, HDFC Bank" maxlength="40" autocomplete="off">
+                        <button type="submit">Forecast</button>
+                    </div>
+                </form>
+
+                <div class="chip-row">
+                    <button class="ticker-chip" data-ticker="Reliance">Reliance</button>
+                    <button class="ticker-chip" data-ticker="TCS">TCS</button>
+                    <button class="ticker-chip" data-ticker="Infosys">Infosys</button>
+                    <button class="ticker-chip" data-ticker="HDFC Bank">HDFC Bank</button>
+                </div>
+
+                <div id="suggestions" class="suggestions" hidden></div>
+                <p id="status" class="status">Loading Reliance...</p>
+            </section>
+
+            <section class="metrics-grid">
+                <article class="metric-card glass">
+                    <span>Latest Close</span>
+                    <strong id="latest-close">--</strong>
+                </article>
+                <article class="metric-card glass">
+                    <span>Forecast End</span>
+                    <strong id="forecast-end">--</strong>
+                </article>
+                <article class="metric-card glass">
+                    <span>Trend Delta</span>
+                    <strong id="trend-delta">--</strong>
+                </article>
+                <article class="metric-card glass">
+                    <span>Points Used</span>
+                    <strong id="points-used">--</strong>
+                </article>
+                <article class="metric-card glass">
+                    <span>52 Week High</span>
+                    <strong id="fifty-two-high">--</strong>
+                </article>
+                <article class="metric-card glass">
+                    <span>52 Week Low</span>
+                    <strong id="fifty-two-low">--</strong>
+                </article>
+            </section>
+
+            <section class="insight-grid">
+                <article class="reason-card glass">
+                    <div class="section-head">
+                        <div>
+                            <p class="section-kicker">Why FinTel Leans This Way</p>
+                            <h2>Prediction rationale</h2>
+                        </div>
+                        <div id="rationale-badge" class="rationale-badge">Model view</div>
+                    </div>
+                    <p id="rationale-summary" class="reason-summary">FinTel is gathering the latest trend and news signals.</p>
+                    <div class="reason-points">
+                        <div class="reason-point">
+                            <span>Trend</span>
+                            <strong id="reason-trend">--</strong>
+                        </div>
+                        <div class="reason-point">
+                            <span>Headline bias</span>
+                            <strong id="reason-news-bias">--</strong>
+                        </div>
+                        <div class="reason-point">
+                            <span>Forecast move</span>
+                            <strong id="reason-forecast-move">--</strong>
+                        </div>
+                    </div>
+                    <p id="rationale-disclaimer" class="reason-disclaimer">This is a directional explanation, not a guarantee.</p>
+                </article>
+
+                <article class="market-card glass">
+                    <div class="section-head">
+                        <div>
+                            <p class="section-kicker">Market Links</p>
+                            <h2>Exchange shortcuts</h2>
+                        </div>
+                    </div>
+                    <div class="market-links">
+                        <a id="primary-market-link" class="market-link" href="#" target="_blank" rel="noreferrer">Open official exchange page</a>
+                        <a id="news-search-link" class="market-link secondary" href="#" target="_blank" rel="noreferrer">Open Google News view</a>
+                    </div>
+                    <p class="market-note">FinTel search suggestions resolve NSE and BSE listings automatically, then load the market data from the matched symbol.</p>
+                </article>
+            </section>
+
+            <section class="chart-card glass">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">Price Map</p>
+                        <h2 id="chart-title">Indian stock forecast</h2>
+                    </div>
+                    <div id="generated-at" class="generated-at">Waiting for data</div>
+                </div>
+
+                <div class="legend">
+                    <span><i class="legend-line history"></i>Historical</span>
+                    <span><i class="legend-line forecast"></i>Predicted</span>
+                </div>
+
+                <svg id="chart" viewBox="0 0 900 420" role="img" aria-label="Historical and predicted stock prices"></svg>
+            </section>
+
+            <section class="tables-grid">
+                <article class="table-card glass">
+                    <div class="section-head">
+                        <div>
+                            <p class="section-kicker">Recent History</p>
+                            <h2>Closing prices</h2>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Close</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table"></tbody>
+                        </table>
+                    </div>
+                </article>
+
+                <article class="table-card glass">
+                    <div class="section-head">
+                        <div>
+                            <p class="section-kicker">Forward View</p>
+                            <h2>Predicted closes</h2>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Prediction</th>
+                                </tr>
+                            </thead>
+                            <tbody id="forecast-table"></tbody>
+                        </table>
+                    </div>
+                </article>
+            </section>
+
+            <section class="news-card glass">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">Recent Headlines</p>
+                        <h2>News supporting the current view</h2>
+                    </div>
+                </div>
+                <div id="news-list" class="news-list"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
