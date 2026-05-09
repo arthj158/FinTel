@@ -12,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -25,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,8 +34,10 @@ public class FinTelServer {
     private static final int PORT = 8080;
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(5))
         .version(HttpClient.Version.HTTP_1_1)
         .build();
+    private static final Map<String, SearchResult> FEATURED_STOCKS = createFeaturedStocks();
 
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
@@ -45,9 +49,11 @@ public class FinTelServer {
         server.createContext("/home.js", new StaticFileHandler("public/home.js", "application/javascript; charset=utf-8"));
         server.createContext("/trending.js", new StaticFileHandler("public/trending.js", "application/javascript; charset=utf-8"));
         server.createContext("/predict", new PredictHandler());
+        server.createContext("/snapshot", new SnapshotHandler());
         server.createContext("/search", new SearchHandler());
         server.createContext("/styles.css", new StaticFileHandler("public/styles.css", "text/css; charset=utf-8"));
-        server.setExecutor(null);
+        // Use a small thread pool so live widgets do not block interactive search requests.
+        server.setExecutor(Executors.newFixedThreadPool(8));
 
         System.out.println("FinTel server running on http://localhost:" + PORT);
         server.start();
@@ -173,19 +179,46 @@ public class FinTelServer {
         }
     }
 
+    static class SnapshotHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 405, "{\"error\":\"Method not allowed.\"}");
+                return;
+            }
+
+            Map<String, String> queryParams = parseQuery(exchange.getRequestURI());
+            String query = queryParams.getOrDefault("ticker", "").trim();
+            if (query.isEmpty()) {
+                sendJson(exchange, 400, "{\"error\":\"Query parameter 'ticker' is required.\"}");
+                return;
+            }
+
+            try {
+                SearchResult resolved = resolveIndianTicker(query);
+                StockData stockData = fetchHistoricalPrices(resolved.symbol());
+                List<PricePoint> historicalPrices = stockData.historicalPrices();
+                if (historicalPrices.isEmpty()) {
+                    sendJson(exchange, 404, "{\"error\":\"No historical prices found.\"}");
+                    return;
+                }
+
+                AutoRegressiveModel model = AutoRegressiveModel.train(historicalPrices);
+                List<PredictedPricePoint> predictions = predictNextBusinessDays(historicalPrices, model, 5);
+                String response = buildSnapshotResponse(resolved, historicalPrices, predictions);
+                sendJson(exchange, 200, response);
+            } catch (IllegalArgumentException e) {
+                sendJson(exchange, 404, "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+            } catch (Exception e) {
+                sendJson(exchange, 500, "{\"error\":\"Failed to load stock snapshot: " + escapeJson(e.getMessage()) + "\"}");
+            }
+        }
+    }
+
     private static StockData fetchHistoricalPrices(String ticker) throws IOException, InterruptedException {
-        String url = "https://query1.finance.yahoo.com/v8/finance/chart/" + ticker
+        String url = "https://query2.finance.yahoo.com/v8/finance/chart/" + ticker
             + "?range=1mo&interval=1d&includePrePost=false&events=div%2Csplits";
-
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(url))
-            .header("User-Agent", "Mozilla/5.0")
-            .header("Accept", "application/json")
-            .header("Accept-Language", "en-US,en;q=0.9")
-            .GET()
-            .build();
-
-        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpPayload response = fetchUrl(url, "application/json");
         if (response.statusCode() >= 400) {
             throw new IllegalArgumentException(
                 "Unable to fetch data for ticker '" + ticker + "' (HTTP " + response.statusCode() + ")."
@@ -241,6 +274,11 @@ public class FinTelServer {
             throw new IllegalArgumentException("Enter an Indian stock name or NSE/BSE symbol.");
         }
 
+        SearchResult featuredMatch = findFeaturedStock(normalized);
+        if (featuredMatch != null) {
+            return featuredMatch;
+        }
+
         if (isIndianSymbol(normalized)) {
             String symbol = normalized.toUpperCase();
             return new SearchResult(symbol, symbol, "", inferExchangeFromSymbol(symbol), "INR");
@@ -254,46 +292,49 @@ public class FinTelServer {
     }
 
     private static List<SearchResult> searchIndianStocks(String query) throws IOException, InterruptedException {
+        List<SearchResult> featuredMatches = searchFeaturedStocks(query);
         String encodedQuery = java.net.URLEncoder.encode(query, StandardCharsets.UTF_8);
         String url = "https://query2.finance.yahoo.com/v1/finance/search?q=" + encodedQuery
             + "&quotesCount=25&newsCount=0&enableFuzzyQuery=true";
 
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(url))
-            .header("User-Agent", "Mozilla/5.0")
-            .header("Accept", "application/json")
-            .header("Accept-Language", "en-US,en;q=0.9")
-            .GET()
-            .build();
-
-        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() >= 400) {
-            throw new IllegalArgumentException("Unable to search Yahoo Finance right now (HTTP " + response.statusCode() + ").");
-        }
-
-        List<String> quoteObjects = extractQuoteObjects(response.body());
-        List<SearchResult> results = new ArrayList<>();
-        for (String quoteObject : quoteObjects) {
-            String symbol = extractJsonString(quoteObject, "symbol");
-            String shortName = extractJsonString(quoteObject, "shortname");
-            String longName = extractJsonString(quoteObject, "longname");
-            String exchange = firstNonBlank(
-                extractJsonString(quoteObject, "exchDisp"),
-                extractJsonString(quoteObject, "exchange")
-            );
-            String quoteType = extractJsonString(quoteObject, "quoteType");
-
-            if (symbol.isBlank() || !isIndianSearchMatch(symbol, exchange) || !"EQUITY".equalsIgnoreCase(quoteType) || symbol.startsWith("0P")) {
-                continue;
+        List<SearchResult> results = new ArrayList<>(featuredMatches);
+        try {
+            HttpPayload response = fetchUrl(url, "application/json");
+            if (response.statusCode() >= 400) {
+                if (!results.isEmpty()) {
+                    return results;
+                }
+                throw new IllegalArgumentException("Unable to search Yahoo Finance right now (HTTP " + response.statusCode() + ").");
             }
 
-            results.add(new SearchResult(
-                symbol,
-                firstNonBlank(shortName, longName, symbol),
-                longName,
-                exchange,
-                "INR"
-            ));
+            List<String> quoteObjects = extractQuoteObjects(response.body());
+            for (String quoteObject : quoteObjects) {
+                String symbol = extractJsonString(quoteObject, "symbol");
+                String shortName = extractJsonString(quoteObject, "shortname");
+                String longName = extractJsonString(quoteObject, "longname");
+                String exchange = firstNonBlank(
+                    extractJsonString(quoteObject, "exchDisp"),
+                    extractJsonString(quoteObject, "exchange")
+                );
+                String quoteType = extractJsonString(quoteObject, "quoteType");
+
+                if (symbol.isBlank() || !isIndianSearchMatch(symbol, exchange) || !"EQUITY".equalsIgnoreCase(quoteType) || symbol.startsWith("0P")) {
+                    continue;
+                }
+
+                SearchResult result = new SearchResult(
+                    symbol,
+                    firstNonBlank(shortName, longName, symbol),
+                    longName,
+                    exchange,
+                    "INR"
+                );
+                addUniqueSearchResult(results, result);
+            }
+        } catch (Exception exception) {
+            if (results.isEmpty()) {
+                throw exception;
+            }
         }
 
         if (results.isEmpty()) {
@@ -310,14 +351,7 @@ public class FinTelServer {
         String encodedQuery = java.net.URLEncoder.encode(searchQuery, StandardCharsets.UTF_8);
         String url = "https://news.google.com/rss/search?q=" + encodedQuery + "&hl=en-IN&gl=IN&ceid=IN:en";
 
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(url))
-            .header("User-Agent", "Mozilla/5.0")
-            .header("Accept", "application/rss+xml, application/xml, text/xml")
-            .GET()
-            .build();
-
-        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpPayload response = fetchUrl(url, "application/rss+xml, application/xml, text/xml");
         if (response.statusCode() >= 400) {
             return List.of();
         }
@@ -476,6 +510,78 @@ public class FinTelServer {
         return json.toString();
     }
 
+    private static String buildSnapshotResponse(
+        SearchResult resolved,
+        List<PricePoint> historicalPrices,
+        List<PredictedPricePoint> predictions
+    ) {
+        double current = historicalPrices.get(historicalPrices.size() - 1).close();
+        double forecast = predictions.get(predictions.size() - 1).predictedClose();
+        StringBuilder json = new StringBuilder();
+        json.append("{");
+        json.append("\"ticker\":\"").append(escapeJson(resolved.symbol())).append("\",");
+        json.append("\"company_name\":\"").append(escapeJson(resolved.displayName())).append("\",");
+        json.append("\"exchange\":\"").append(escapeJson(resolved.exchange())).append("\",");
+        json.append("\"currency\":\"").append(escapeJson(resolved.currency())).append("\",");
+        json.append("\"current\":").append(formatDecimal(current)).append(",");
+        json.append("\"forecast\":").append(formatDecimal(forecast));
+        json.append("}");
+        return json.toString();
+    }
+
+    private static HttpPayload fetchUrl(String url, String acceptHeader) throws IOException, InterruptedException {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(6))
+                .header("User-Agent", "Mozilla/5.0")
+                .header("Accept", acceptHeader)
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .GET()
+                .build();
+            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            return new HttpPayload(response.statusCode(), response.body());
+        } catch (Exception primaryError) {
+            return fetchUrlWithCurl(url, acceptHeader, primaryError);
+        }
+    }
+
+    private static HttpPayload fetchUrlWithCurl(String url, String acceptHeader, Exception primaryError) throws IOException, InterruptedException {
+        ProcessBuilder builder = new ProcessBuilder(
+            "curl.exe",
+            "-L",
+            "-s",
+            "--max-time", "8",
+            "-H", "User-Agent: Mozilla/5.0",
+            "-H", "Accept: " + acceptHeader,
+            "-H", "Accept-Language: en-US,en;q=0.9",
+            "-w", "\n%{http_code}",
+            url
+        );
+        builder.redirectErrorStream(true);
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = process.waitFor();
+        if (exitCode != 0 || output.isBlank()) {
+            throw new IOException(primaryError.getMessage(), primaryError);
+        }
+
+        int marker = output.lastIndexOf('\n');
+        if (marker < 0) {
+            throw new IOException(primaryError.getMessage(), primaryError);
+        }
+
+        String body = output.substring(0, marker).trim();
+        String statusText = output.substring(marker + 1).trim();
+        int statusCode;
+        try {
+            statusCode = Integer.parseInt(statusText);
+        } catch (NumberFormatException exception) {
+            throw new IOException(primaryError.getMessage(), primaryError);
+        }
+        return new HttpPayload(statusCode, body);
+    }
+
     private static String buildSearchResponse(List<SearchResult> results) {
         StringBuilder json = new StringBuilder();
         json.append("{\"results\":[");
@@ -493,6 +599,78 @@ public class FinTelServer {
         }
         json.append("]}");
         return json.toString();
+    }
+
+    private static Map<String, SearchResult> createFeaturedStocks() {
+        Map<String, SearchResult> stocks = new LinkedHashMap<>();
+        addFeaturedStock(stocks, "RELIANCE.NS", "Reliance Industries", "NSE", "reliance", "ril");
+        addFeaturedStock(stocks, "TCS.NS", "TCS", "NSE", "tcs", "tata consultancy services");
+        addFeaturedStock(stocks, "INFY.NS", "Infosys", "NSE", "infosys", "infy");
+        addFeaturedStock(stocks, "HDFCBANK.NS", "HDFC Bank", "NSE", "hdfc bank", "hdfcbank");
+        addFeaturedStock(stocks, "ICICIBANK.NS", "ICICI Bank", "NSE", "icici bank", "icicibank");
+        addFeaturedStock(stocks, "BHARTIARTL.NS", "Bharti Airtel", "NSE", "bharti airtel", "airtel", "bhartiartl");
+        addFeaturedStock(stocks, "LT.NS", "Larsen & Toubro", "NSE", "larsen & toubro", "l&t", "lt");
+        addFeaturedStock(stocks, "TATAMOTORS.NS", "Tata Motors", "NSE", "tata motors", "tatamotors");
+        addFeaturedStock(stocks, "AXISBANK.NS", "Axis Bank", "NSE", "axis bank", "axisbank");
+        addFeaturedStock(stocks, "MARUTI.NS", "Maruti Suzuki", "NSE", "maruti suzuki", "maruti");
+        addFeaturedStock(stocks, "SBIN.NS", "State Bank of India", "NSE", "state bank of india", "sbi", "sbin");
+        addFeaturedStock(stocks, "TATASTEEL.NS", "Tata Steel", "NSE", "tata steel", "tatasteel");
+        return stocks;
+    }
+
+    private static void addFeaturedStock(
+        Map<String, SearchResult> stocks,
+        String symbol,
+        String displayName,
+        String exchange,
+        String... aliases
+    ) {
+        SearchResult result = new SearchResult(symbol, displayName, displayName, exchange, "INR");
+        stocks.put(symbol.toLowerCase(Locale.US), result);
+        stocks.put(displayName.toLowerCase(Locale.US), result);
+        for (String alias : aliases) {
+            stocks.put(alias.toLowerCase(Locale.US), result);
+        }
+    }
+
+    private static SearchResult findFeaturedStock(String query) {
+        String normalized = query.trim().toLowerCase(Locale.US);
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        SearchResult direct = FEATURED_STOCKS.get(normalized);
+        if (direct != null) {
+            return direct;
+        }
+        for (Map.Entry<String, SearchResult> entry : FEATURED_STOCKS.entrySet()) {
+            if (entry.getKey().contains(normalized) || normalized.contains(entry.getKey())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private static List<SearchResult> searchFeaturedStocks(String query) {
+        String normalized = query.trim().toLowerCase(Locale.US);
+        List<SearchResult> matches = new ArrayList<>();
+        if (normalized.isEmpty()) {
+            return matches;
+        }
+        for (Map.Entry<String, SearchResult> entry : FEATURED_STOCKS.entrySet()) {
+            if (entry.getKey().contains(normalized) || entry.getValue().symbol().toLowerCase(Locale.US).contains(normalized)) {
+                addUniqueSearchResult(matches, entry.getValue());
+            }
+        }
+        return matches;
+    }
+
+    private static void addUniqueSearchResult(List<SearchResult> results, SearchResult candidate) {
+        for (SearchResult existing : results) {
+            if (existing.symbol().equalsIgnoreCase(candidate.symbol())) {
+                return;
+            }
+        }
+        results.add(candidate);
     }
 
     private static Map<String, String> parseQuery(URI uri) {
@@ -1005,6 +1183,24 @@ public class FinTelServer {
 
         String currency() {
             return currency;
+        }
+    }
+
+    static class HttpPayload {
+        private final int statusCode;
+        private final String body;
+
+        HttpPayload(int statusCode, String body) {
+            this.statusCode = statusCode;
+            this.body = body;
+        }
+
+        int statusCode() {
+            return statusCode;
+        }
+
+        String body() {
+            return body;
         }
     }
 

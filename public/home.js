@@ -19,6 +19,7 @@ const TRENDING_POOL = [
     "State Bank of India",
     "Tata Steel"
 ];
+let suggestionRequestId = 0;
 
 function formatCurrency(value, currency = "INR") {
     return new Intl.NumberFormat("en-IN", {
@@ -90,34 +91,35 @@ async function loadTrendingStocks() {
     }
 
     trendingStatusEl.textContent = "Loading now";
-    const selected = pickTrendingStocks(5);
-
-    const results = await Promise.all(selected.map(async (query) => {
+    const selected = pickTrendingStocks(3);
+    const requests = selected.map(async (query) => {
         try {
-            const response = await fetch(`/predict?ticker=${encodeURIComponent(query)}`);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+            const response = await fetch(`/snapshot?ticker=${encodeURIComponent(query)}`, { signal: controller.signal });
+            clearTimeout(timeoutId);
             const data = await response.json();
             if (!response.ok) {
                 return null;
             }
-
-            const current = data.historical_prices[data.historical_prices.length - 1]?.close ?? 0;
-            const forecast = data.predicted_prices[data.predicted_prices.length - 1]?.predicted_close ?? 0;
             return {
                 query,
                 name: data.company_name,
                 symbol: data.ticker,
                 exchange: data.exchange,
                 currency: data.currency || "INR",
-                current,
-                forecast
+                current: data.current ?? 0,
+                forecast: data.forecast ?? 0
             };
         } catch (_error) {
             return null;
         }
-    }));
+    });
 
-    const validResults = results.filter(Boolean);
-    if (!validResults.length) {
+    const settled = await Promise.all(requests);
+    const results = settled.filter(Boolean);
+
+    if (!results.length) {
         trendingListEl.innerHTML = `
             <article class="trending-item trending-loading">
                 <div class="trending-meta">
@@ -130,8 +132,24 @@ async function loadTrendingStocks() {
         return;
     }
 
-    renderTrendingStocks(validResults);
+    renderTrendingStocks(results);
     trendingStatusEl.textContent = "Updated on reload";
+}
+
+function buildLocalSuggestions(query) {
+    const cleanQuery = query.trim().toLowerCase();
+    if (cleanQuery.length < 2) {
+        return [];
+    }
+
+    return TRENDING_POOL
+        .filter((name) => name.toLowerCase().includes(cleanQuery))
+        .slice(0, 6)
+        .map((name) => ({
+            symbol: name,
+            name,
+            exchange: "India"
+        }));
 }
 
 function renderSuggestions(results) {
@@ -162,18 +180,31 @@ async function searchSuggestions(query) {
         return;
     }
 
+    const localResults = buildLocalSuggestions(cleanQuery);
+    if (localResults.length) {
+        renderSuggestions(localResults);
+    }
+
+    const requestId = ++suggestionRequestId;
     try {
         const response = await fetch(`/search?query=${encodeURIComponent(cleanQuery)}`);
         const data = await response.json();
+        if (requestId !== suggestionRequestId) {
+            return;
+        }
         if (!response.ok) {
-            suggestionsEl.hidden = true;
-            suggestionsEl.innerHTML = "";
+            if (!localResults.length) {
+                suggestionsEl.hidden = true;
+                suggestionsEl.innerHTML = "";
+            }
             return;
         }
         renderSuggestions(data.results || []);
     } catch (_error) {
-        suggestionsEl.hidden = true;
-        suggestionsEl.innerHTML = "";
+        if (!localResults.length) {
+            suggestionsEl.hidden = true;
+            suggestionsEl.innerHTML = "";
+        }
     }
 }
 
@@ -186,4 +217,4 @@ input.addEventListener("input", () => {
     searchSuggestions(input.value);
 });
 
-loadTrendingStocks();
+window.setTimeout(loadTrendingStocks, 250);
