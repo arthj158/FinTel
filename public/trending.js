@@ -82,12 +82,12 @@ async function loadTrendingStocks() {
             });
             clearTimeout(timeoutId);
             const data = await response.json();
-            if (!response.ok || !Array.isArray(data.historical_prices) || !Array.isArray(data.predicted_prices)) {
+            if (!response.ok) {
                 return null;
             }
 
-            const current = data.historical_prices[data.historical_prices.length - 1]?.close ?? 0;
-            const forecast = data.predicted_prices[data.predicted_prices.length - 1]?.predicted_close ?? 0;
+            const current = data.current ?? 0;
+            const forecast = data.forecast ?? 0;
             if (!Number.isFinite(current) || !Number.isFinite(forecast) || current <= 0 || forecast <= 0) {
                 return null;
             }
