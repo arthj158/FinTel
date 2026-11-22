@@ -6,8 +6,8 @@
     <title>FinTel India Forecast Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,ital,wght@6..96,1,700&family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css?v=3">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=7">
 </head>
 <body>
     <div class="page-shell">
@@ -15,29 +15,43 @@
         <div class="ambient ambient-two"></div>
         <div class="ambient ambient-three"></div>
 
+        <section class="utility-row">
+            <a class="site-wordmark" href="/" aria-label="FinTel home">
+                <span class="wordmark-icon">F</span>
+                <span>fintel<small>INDIA MARKETS</small></span>
+            </a>
+
+            <nav class="site-nav" aria-label="Main navigation">
+                <a href="/trending">Market board</a>
+                <button id="flow-trigger" class="flow-trigger" type="button">How it works</button>
+            </nav>
+
+            <section class="account-bar">
+                <div id="account-avatar" class="account-avatar" aria-hidden="true">U</div>
+                <div class="account-actions">
+                    <button id="login-trigger" class="account-button secondary" type="button">Log in</button>
+                    <button id="register-trigger" class="account-button" type="button">Create account</button>
+                </div>
+            </section>
+        </section>
+
         <section class="hero hero-home hero-home-right-rail">
             <div class="hero-main">
                 <div class="hero-copy">
-                    <div class="hero-brand-row">
-                        <div class="logo-mark" aria-hidden="true">
-                            <img src="/fintel-mark.svg" alt="FinTel logo">
-                        </div>
-                        <h1>FinTel</h1>
-                    </div>
                     <div class="brand-lockup">
                         <div class="brand-copy">
-                            <p class="eyebrow">FinTel Forecast Studio</p>
-                            <span>Indian equities, short-term signals, and market context</span>
+                            <p class="eyebrow">A clearer view of Indian equities</p>
+                            <span>Prices, short-term outlooks and the news around them</span>
                         </div>
                     </div>
-                    <p class="hero-subheading">Search almost any listed Indian stock, see the trend, and understand the story behind the prediction.</p>
+                    <p class="hero-subheading">Good research starts with a better question.</p>
                     <p class="hero-text">
-                        FinTel is built to make Indian stock research feel clear and deliberate. Search by company name or symbol, jump into a focused forecast view, and get price movement with enough market context to understand what the model is reacting to.
+                        Look up a company to explore recent prices, a five-day model outlook and the headlines shaping the conversation. Everything in one place, with the assumptions in view.
                     </p>
                     <div class="hero-chips hero-chips-brand">
-                        <span>Indian market search</span>
-                        <span>52-week range</span>
-                        <span>Forecast + headlines</span>
+                        <span>Listed on NSE &amp; BSE</span>
+                        <span>Five-day outlook</span>
+                        <span>Recent headlines</span>
                     </div>
                 </div>
 
@@ -46,7 +60,7 @@
                         <label for="ticker-input">Search Indian stock</label>
                         <div class="search-row">
                             <input id="ticker-input" name="ticker" type="text" placeholder="Try Reliance, TCS, Infosys, HDFC Bank" maxlength="40" autocomplete="off">
-                            <button type="submit">Open analysis</button>
+                            <button type="submit">Find a company <span aria-hidden="true">→</span></button>
                         </div>
                     </form>
 
@@ -73,8 +87,95 @@
                 </div>
             </aside>
         </section>
+
+        <section class="legal-disclaimer">
+            <p class="section-kicker">Important Disclaimer</p>
+            <h2>Market risk and user responsibility</h2>
+            <p>Investments in securities are subject to market risks. Past performance is not indicative of future results, and no assured returns are provided by FinTel.</p>
+            <p>FinTel is an educational and informational platform only. It does not provide investment advice, recommendations, or guarantees, and all trades are executed solely at the user&rsquo;s own discretion and responsibility.</p>
+        </section>
+
+        <div id="auth-modal" class="auth-modal" hidden>
+            <div class="auth-backdrop" data-close-auth="true"></div>
+            <section class="auth-panel glass" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+                <button id="auth-close" class="auth-close" type="button" aria-label="Close account panel">&times;</button>
+                <p class="section-kicker">Account Access</p>
+                <h2 id="auth-title">Join FinTel</h2>
+                <div class="auth-switch">
+                    <button id="show-login" class="auth-switch-button secondary" type="button">Login</button>
+                    <button id="show-register" class="auth-switch-button" type="button">Register</button>
+                </div>
+
+                <form id="login-form" class="auth-form">
+                    <input id="login-email" name="email" type="email" placeholder="Email address" maxlength="80" autocomplete="email">
+                    <input id="login-password" name="password" type="password" placeholder="Password" minlength="6" maxlength="80" autocomplete="current-password">
+                    <button class="auth-submit" type="submit">Login to FinTel</button>
+                    <p id="login-status" class="status">Use your registered email and password to sign in.</p>
+                </form>
+
+                <form id="register-form" class="auth-form" hidden>
+                    <input id="register-name" name="name" type="text" placeholder="Full name" maxlength="60" autocomplete="name">
+                    <input id="register-email" name="email" type="email" placeholder="Email address" maxlength="80" autocomplete="email">
+                    <input id="register-password" name="password" type="password" placeholder="Create password" minlength="6" maxlength="80" autocomplete="new-password">
+                    <button class="auth-submit" type="submit">Create account</button>
+                    <p id="register-status" class="status">Create an account to save a basic FinTel user profile.</p>
+                </form>
+            </section>
+        </div>
+
+        <div id="flow-modal" class="auth-modal" hidden>
+            <div class="auth-backdrop" data-close-flow="true"></div>
+            <section class="flow-panel glass" role="dialog" aria-modal="true" aria-labelledby="flow-title">
+                <button id="flow-close" class="auth-close" type="button" aria-label="Close code flow panel">&times;</button>
+                <div class="flow-head">
+                    <div>
+                        <p class="section-kicker">Interactive Code Flow</p>
+                        <h2 id="flow-title">How FinTel moves through the stack</h2>
+                    </div>
+                    <p class="flow-intro">Explore the live request journey from user input to stock forecast, rationale, and rendered UI.</p>
+                </div>
+
+                <div class="flow-layout">
+                    <div class="flow-orbit-shell">
+                        <div class="flow-orbit-grid">
+                            <svg class="flow-lines" viewBox="0 0 520 520" aria-hidden="true">
+                                <line x1="260" y1="260" x2="260" y2="72"></line>
+                                <line x1="260" y1="260" x2="406" y2="118"></line>
+                                <line x1="260" y1="260" x2="452" y2="260"></line>
+                                <line x1="260" y1="260" x2="406" y2="404"></line>
+                                <line x1="260" y1="260" x2="260" y2="448"></line>
+                                <line x1="260" y1="260" x2="114" y2="404"></line>
+                                <line x1="260" y1="260" x2="68" y2="260"></line>
+                                <line x1="260" y1="260" x2="114" y2="118"></line>
+                            </svg>
+
+                            <div class="flow-core">
+                                <span>FinTel Engine</span>
+                                <strong>Forecast Pipeline</strong>
+                            </div>
+
+                            <button class="flow-node flow-node-top is-active" type="button" data-flow-step="input">Search Input</button>
+                            <button class="flow-node flow-node-top-right" type="button" data-flow-step="resolve">Ticker Resolve</button>
+                            <button class="flow-node flow-node-right" type="button" data-flow-step="prices">Price API</button>
+                            <button class="flow-node flow-node-bottom-right" type="button" data-flow-step="model">Forecast Model</button>
+                            <button class="flow-node flow-node-bottom" type="button" data-flow-step="news">News Context</button>
+                            <button class="flow-node flow-node-bottom-left" type="button" data-flow-step="response">JSON Response</button>
+                            <button class="flow-node flow-node-left" type="button" data-flow-step="ui">UI Render</button>
+                            <button class="flow-node flow-node-top-left" type="button" data-flow-step="accounts">Account Flow</button>
+                        </div>
+                    </div>
+
+                    <article class="flow-detail glass">
+                        <p class="section-kicker">Selected Stage</p>
+                        <h3 id="flow-detail-title">Search Input</h3>
+                        <p id="flow-detail-summary" class="flow-detail-summary">The homepage captures company names or symbols and starts the request chain with autocomplete support.</p>
+                        <div id="flow-detail-points" class="flow-detail-points"></div>
+                    </article>
+                </div>
+            </section>
+        </div>
     </div>
 
-    <script src="/home.js?v=3"></script>
+    <script src="/home.js?v=6"></script>
 </body>
 </html>

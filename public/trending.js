@@ -75,14 +75,22 @@ async function loadTrendingStocks() {
 
     const results = await Promise.all(selected.map(async (query) => {
         try {
-            const response = await fetch(`/predict?ticker=${encodeURIComponent(query)}`);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const response = await fetch(`/snapshot?ticker=${encodeURIComponent(query)}`, {
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
             const data = await response.json();
-            if (!response.ok) {
+            if (!response.ok || !Array.isArray(data.historical_prices) || !Array.isArray(data.predicted_prices)) {
                 return null;
             }
 
             const current = data.historical_prices[data.historical_prices.length - 1]?.close ?? 0;
             const forecast = data.predicted_prices[data.predicted_prices.length - 1]?.predicted_close ?? 0;
+            if (!Number.isFinite(current) || !Number.isFinite(forecast) || current <= 0 || forecast <= 0) {
+                return null;
+            }
             return {
                 query,
                 name: data.company_name,

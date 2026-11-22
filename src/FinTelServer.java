@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -11,6 +12,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,8 +34,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class FinTelServer {
-    private static final int PORT = 8080;
+    private static final int PORT = Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+    private static final Path REGISTERED_USERS_PATH = Path.of("data", "users.csv");
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
         .version(HttpClient.Version.HTTP_1_1)
@@ -49,6 +53,8 @@ public class FinTelServer {
         server.createContext("/home.js", new StaticFileHandler("public/home.js", "application/javascript; charset=utf-8"));
         server.createContext("/trending.js", new StaticFileHandler("public/trending.js", "application/javascript; charset=utf-8"));
         server.createContext("/predict", new PredictHandler());
+        server.createContext("/login", new LoginHandler());
+        server.createContext("/register", new RegisterHandler());
         server.createContext("/snapshot", new SnapshotHandler());
         server.createContext("/search", new SearchHandler());
         server.createContext("/styles.css", new StaticFileHandler("public/styles.css", "text/css; charset=utf-8"));
@@ -133,6 +139,77 @@ public class FinTelServer {
                 sendJson(exchange, 404, "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
             } catch (Exception e) {
                 sendJson(exchange, 500, "{\"error\":\"Failed to search Indian stocks: " + escapeJson(e.getMessage()) + "\"}");
+            }
+        }
+    }
+
+    static class RegisterHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 405, "{\"error\":\"Method not allowed.\"}");
+                return;
+            }
+
+            try {
+                String body = readRequestBody(exchange);
+                String name = extractJsonStringValue(body, "name").trim();
+                String email = extractJsonStringValue(body, "email").trim().toLowerCase(Locale.US);
+                String password = extractJsonStringValue(body, "password").trim();
+
+                if (name.isBlank() || email.isBlank() || password.isBlank()) {
+                    sendJson(exchange, 400, "{\"error\":\"Name, email, and password are required.\"}");
+                    return;
+                }
+
+                if (!email.contains("@") || email.startsWith("@") || email.endsWith("@")) {
+                    sendJson(exchange, 400, "{\"error\":\"Enter a valid email address.\"}");
+                    return;
+                }
+
+                if (password.length() < 6) {
+                    sendJson(exchange, 400, "{\"error\":\"Password must be at least 6 characters.\"}");
+                    return;
+                }
+
+                RegisteredUser user = registerUser(name, email, password);
+                String response = "{\"message\":\"Registration successful.\","
+                    + "\"user\":{\"name\":\"" + escapeJson(user.name()) + "\",\"email\":\"" + escapeJson(user.email()) + "\"}}";
+                sendJson(exchange, 201, response);
+            } catch (IllegalArgumentException exception) {
+                sendJson(exchange, 409, "{\"error\":\"" + escapeJson(exception.getMessage()) + "\"}");
+            } catch (Exception exception) {
+                sendJson(exchange, 500, "{\"error\":\"Unable to register user right now.\"}");
+            }
+        }
+    }
+
+    static class LoginHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 405, "{\"error\":\"Method not allowed.\"}");
+                return;
+            }
+
+            try {
+                String body = readRequestBody(exchange);
+                String email = extractJsonStringValue(body, "email").trim().toLowerCase(Locale.US);
+                String password = extractJsonStringValue(body, "password").trim();
+
+                if (email.isBlank() || password.isBlank()) {
+                    sendJson(exchange, 400, "{\"error\":\"Email and password are required.\"}");
+                    return;
+                }
+
+                RegisteredUser user = authenticateUser(email, password);
+                String response = "{\"message\":\"Login successful.\","
+                    + "\"user\":{\"name\":\"" + escapeJson(user.name()) + "\",\"email\":\"" + escapeJson(user.email()) + "\"}}";
+                sendJson(exchange, 200, response);
+            } catch (IllegalArgumentException exception) {
+                sendJson(exchange, 401, "{\"error\":\"" + escapeJson(exception.getMessage()) + "\"}");
+            } catch (Exception exception) {
+                sendJson(exchange, 500, "{\"error\":\"Unable to login right now.\"}");
             }
         }
     }
@@ -599,6 +676,90 @@ public class FinTelServer {
         }
         json.append("]}");
         return json.toString();
+    }
+
+    private static RegisteredUser registerUser(String name, String email, String password) throws IOException {
+        Files.createDirectories(REGISTERED_USERS_PATH.getParent());
+        List<String> existingLines = Files.exists(REGISTERED_USERS_PATH)
+            ? Files.readAllLines(REGISTERED_USERS_PATH, StandardCharsets.UTF_8)
+            : List.of();
+
+        for (String line : existingLines) {
+            if (line.isBlank()) {
+                continue;
+            }
+            String[] parts = line.split(",", 4);
+            if (parts.length >= 2 && parts[1].equalsIgnoreCase(email)) {
+                throw new IllegalArgumentException("An account with this email already exists.");
+            }
+        }
+
+        String hashedPassword = sha256(password);
+        String record = escapeCsv(name) + "," + escapeCsv(email) + "," + hashedPassword + "," + Instant.now();
+        Files.writeString(
+            REGISTERED_USERS_PATH,
+            record + System.lineSeparator(),
+            StandardCharsets.UTF_8,
+            Files.exists(REGISTERED_USERS_PATH) ? java.nio.file.StandardOpenOption.APPEND : java.nio.file.StandardOpenOption.CREATE
+        );
+
+        return new RegisteredUser(name, email);
+    }
+
+    private static RegisteredUser authenticateUser(String email, String password) throws IOException {
+        if (!Files.exists(REGISTERED_USERS_PATH)) {
+            throw new IllegalArgumentException("No registered account found for this email.");
+        }
+
+        String hashedPassword = sha256(password);
+        List<String> existingLines = Files.readAllLines(REGISTERED_USERS_PATH, StandardCharsets.UTF_8);
+        for (String line : existingLines) {
+            if (line.isBlank()) {
+                continue;
+            }
+
+            String[] parts = line.split(",", 4);
+            if (parts.length < 3) {
+                continue;
+            }
+
+            String storedName = parts[0].trim();
+            String storedEmail = parts[1].trim().toLowerCase(Locale.US);
+            String storedPassword = parts[2].trim();
+            if (storedEmail.equals(email) && storedPassword.equals(hashedPassword)) {
+                return new RegisteredUser(storedName, storedEmail);
+            }
+        }
+
+        throw new IllegalArgumentException("Invalid email or password.");
+    }
+
+    private static String escapeCsv(String value) {
+        return value.replace(",", " ").replace("\n", " ").replace("\r", " ").trim();
+    }
+
+    private static String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder output = new StringBuilder();
+            for (byte current : bytes) {
+                output.append(String.format("%02x", current));
+            }
+            return output.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 not available", exception);
+        }
+    }
+
+    private static String readRequestBody(HttpExchange exchange) throws IOException {
+        try (InputStream inputStream = exchange.getRequestBody()) {
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static String extractJsonStringValue(String source, String fieldName) {
+        return extractJsonString(source, fieldName);
     }
 
     private static Map<String, SearchResult> createFeaturedStocks() {
@@ -1183,6 +1344,24 @@ public class FinTelServer {
 
         String currency() {
             return currency;
+        }
+    }
+
+    static class RegisteredUser {
+        private final String name;
+        private final String email;
+
+        RegisteredUser(String name, String email) {
+            this.name = name;
+            this.email = email;
+        }
+
+        String name() {
+            return name;
+        }
+
+        String email() {
+            return email;
         }
     }
 

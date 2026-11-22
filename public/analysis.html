@@ -6,7 +6,7 @@
     <title>FinTel Analysis</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,ital,wght@6..96,1,700&family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -16,13 +16,8 @@
         <div class="ambient ambient-three"></div>
 
         <section class="analysis-topbar">
-            <a class="back-link" href="/">Back to search</a>
-            <div class="analysis-brand">
-                <div class="logo-mark logo-mark-small" aria-hidden="true">
-                    <img src="/fintel-mark.svg" alt="FinTel logo">
-                </div>
-                <span>FinTel</span>
-            </div>
+            <a class="site-wordmark" href="/" aria-label="FinTel home"><span class="wordmark-icon">F</span><span>fintel<small>INDIA MARKETS</small></span></a>
+            <nav class="site-nav" aria-label="Main navigation"><a href="/trending">Market board</a><a class="back-link" href="/">Search another company</a></nav>
         </section>
 
         <main class="dashboard analysis-dashboard">
@@ -182,6 +177,13 @@
                     </div>
                 </div>
                 <div id="news-list" class="news-list"></div>
+            </section>
+
+            <section class="legal-disclaimer glass">
+                <p class="section-kicker">Important Disclaimer</p>
+                <h2>Market risk and user responsibility</h2>
+                <p>Investments in securities are subject to market risks. Past performance is not indicative of future results, and no assured returns are provided by FinTel.</p>
+                <p>FinTel is an educational and informational platform only. It does not provide investment advice, recommendations, or guarantees, and all trades are executed solely at the user&rsquo;s own discretion and responsibility.</p>
             </section>
         </main>
     </div>

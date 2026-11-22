@@ -6,7 +6,7 @@
     <title>FinTel Trending</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,ital,wght@6..96,1,700&family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -16,25 +16,20 @@
         <div class="ambient ambient-three"></div>
 
         <section class="analysis-topbar">
-            <a class="back-link" href="/">Back to home</a>
-            <div class="analysis-brand">
-                <div class="logo-mark logo-mark-small" aria-hidden="true">
-                    <img src="/fintel-mark.svg" alt="FinTel logo">
-                </div>
-                <span>FinTel</span>
-            </div>
+            <a class="site-wordmark" href="/" aria-label="FinTel home"><span class="wordmark-icon">F</span><span>fintel<small>INDIA MARKETS</small></span></a>
+            <nav class="site-nav" aria-label="Main navigation"><a href="/">Search stocks</a></nav>
         </section>
 
         <main class="dashboard trending-page">
             <section class="glass trending-hero-card">
                 <div class="section-head">
                     <div>
-                        <p class="section-kicker">Live Board</p>
-                        <h1 class="trending-title">Trending Stocks</h1>
+                        <p class="section-kicker">The market board</p>
+                        <h1 class="trending-title">A closer look at<br>Indian markets.</h1>
                     </div>
                     <div id="trending-status" class="sidebar-status">Refreshing on reload</div>
                 </div>
-                <p class="trending-copy">FinTel picks a fresh group of Indian stocks on every reload and compares the latest close with the current 5-day forecast end price.</p>
+                <p class="trending-copy">A rotating selection of familiar names, compared against a short-term model outlook. Forecasts are estimates, not guarantees.</p>
             </section>
 
             <section class="glass trending-board">
