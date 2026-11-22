@@ -51,7 +51,6 @@ public class FinTelServer {
         server.createContext("/app.js", new StaticFileHandler("public/app.js", "application/javascript; charset=utf-8"));
         server.createContext("/fintel-mark.svg", new StaticFileHandler("public/fintel-mark.svg", "image/svg+xml; charset=utf-8"));
         server.createContext("/home.js", new StaticFileHandler("public/home.js", "application/javascript; charset=utf-8"));
-        server.createContext("/trending.js", new StaticFileHandler("public/trending.js", "application/javascript; charset=utf-8"));
         server.createContext("/predict", new PredictHandler());
         server.createContext("/login", new LoginHandler());
         server.createContext("/register", new RegisterHandler());
@@ -94,7 +93,9 @@ public class FinTelServer {
                 sendJson(exchange, 405, "{\"error\":\"Method not allowed.\"}");
                 return;
             }
-            sendText(exchange, 200, readFile("public/trending.html"), "text/html; charset=utf-8");
+            exchange.getResponseHeaders().set("Location", "/");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
         }
     }
 
